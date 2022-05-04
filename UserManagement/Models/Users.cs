@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore.ChangeTracking;
+using System;
 using System.Collections.Generic;
 
 // Code scaffolded by EF Core assumes nullable reference types (NRTs) are not used or disabled.
@@ -14,5 +15,7 @@ namespace UserManagement.Models
         public string Password { get; set; }
         public string FirstName { get; set; }
         public string LastName { get; set; }
+
+       
     }
 }
