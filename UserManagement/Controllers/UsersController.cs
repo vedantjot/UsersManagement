@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
+using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using UserManagement.Models;
 using UserManagement.Models.Data;
 
@@ -15,17 +19,38 @@ namespace UserManagement.Controllers
     public class UsersController : ControllerBase
     {
         private readonly UserManagementContext _context;
+        private readonly IConfiguration _config;
+        private readonly String connectionString;
 
-        public UsersController(UserManagementContext context)
+        public UsersController(UserManagementContext context, IConfiguration config)
         {
             _context = context;
+            _config = config;
+
+            connectionString = _config.GetValue<string>("ConnectionStrings:Database");
         }
+
+
+    
 
         // GET: api/Users
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Users>>> GetUsers()
         {
-            return await _context.Users.ToListAsync();
+            
+            using (IDbConnection con = new SqlConnection(connectionString))
+            {
+                if (con.State == ConnectionState.Closed)
+                    con.Open();
+
+               var users = con.Query<Users>("getAllUsers").ToList();
+                return users;
+
+            }
+
+           
+
+           
         }
 
 
@@ -33,7 +58,22 @@ namespace UserManagement.Controllers
         [HttpPost("login")]
         public Response login(Users user)
         {
-            var temp = _context.Users.FirstOrDefault(x => x.Email == user.Email);
+            Users temp;
+            using (IDbConnection con = new SqlConnection(connectionString))
+            {
+                if (con.State == ConnectionState.Closed)
+                    con.Open();
+
+                DynamicParameters parameter = new DynamicParameters();
+                parameter.Add("@email", user.Email);
+               
+
+
+                temp = con.Query<Users>("getUserByEmail", parameter, commandType: CommandType.StoredProcedure).FirstOrDefault();
+             
+
+            }
+
 
             if (temp == null)
             {
@@ -107,7 +147,7 @@ namespace UserManagement.Controllers
             return NoContent();
         }
 
-        // POST: api/Users
+        // POST: api/Users/signup
         // To protect from overposting attacks, enable the specific properties you want to bind to, for
         // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
         [HttpPost("singup")]
@@ -115,12 +155,38 @@ namespace UserManagement.Controllers
         {
             users.Password=users.Password.Trim();
             users.Password= BCrypt.Net.BCrypt.HashPassword(users.Password);
-           _context.Users.Add(users);
-             _context.SaveChanges();
+
+
+           
+
+            using (IDbConnection con = new SqlConnection(connectionString))
+            {
+                if (con.State == ConnectionState.Closed)
+                    con.Open();
+
+                DynamicParameters parameter = new DynamicParameters();
+                parameter.Add("@email", users.Email);
+                parameter.Add("@password", users.Password);
+                parameter.Add("@fname", users.FirstName);
+                parameter.Add("@lname", users.LastName);
+
+                var result = con.Execute("addNewUser",parameter, commandType: CommandType.StoredProcedure);
+
+                if(result>0)
+                {
+                    return new Response { Message = "Signup sucessfull", Status = "Valid", User = users };
+                }
+
+                return new Response { Message = "Signup Failed", Status = "InValid", User = null };
+
+                //  return (Response)result;
+
+            }
+
 
             //return CreatedAtAction("GetUsers", new { id = users.Id }, users);
 
-            return new Response { Message = "Signup sucessfull", Status = "Valid", User = users };
+           // return new Response { Message = "Signup sucessfull", Status = "Valid", User = users };
         }
 
         // DELETE: api/Users/5

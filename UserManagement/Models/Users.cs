@@ -16,6 +16,6 @@ namespace UserManagement.Models
         public string FirstName { get; set; }
         public string LastName { get; set; }
 
-       
+       public Users user { get; set; }
     }
 }
